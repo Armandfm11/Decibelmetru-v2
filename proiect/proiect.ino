@@ -34,8 +34,8 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
   // Initializare
 
 // Credentialele
-char ssid[]       = "REMOVED_SSID";
-char pass[]       = "REMOVED_PASS";
+char ssid[]       = "0";
+char pass[]       = "0";
 IPAddress pcIP(0, 0, 0, 0);
 unsigned int port = 0;
 
