@@ -34,10 +34,7 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
   // Initializare
 
 // Credentialele
-char ssid[]       = "0";
-char pass[]       = "0";
-IPAddress pcIP(0, 0, 0, 0);
-unsigned int port = 0;
+#include "network.h"
 
 // Stare initiala
 int status        = WL_IDLE_STATUS;

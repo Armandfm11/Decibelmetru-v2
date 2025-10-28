@@ -24,9 +24,9 @@ from pattern_ai import PatternAI
 
 
         # Configurare socket UDP
-# Aplicatia va accepta pachete de la orice IP de pe portul 2390
+# Aplicatia va accepta pachete de la orice IP de pe portul 0
 UDP_IP = "0.0.0.0"
-UDP_PORT = 2390
+UDP_PORT = 0
 
 # Creare socket care va folosi IPv4 și UDP
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
