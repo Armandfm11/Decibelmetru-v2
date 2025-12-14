@@ -10,10 +10,22 @@ with open("patternai_state.pkl", "rb") as f:
 # Extract model and check initialization
 model = state["model"]
 initialized = state.get("initialized", False)
+history = state.get("history", [])
 
-if not initialized:
-    print("Modelul PatternAI nu este antrenat suficient pentru predicții.")
-    exit()
+# Check if model is actually trained (has estimators)
+if not initialized or not hasattr(model, 'estimators_') or len(model.estimators_) == 0:
+    print(f"Modelul nu este antrenat, dar există {len(history)} observații în istoric.")
+    
+    if len(history) < 50:
+        print(f"Se necesită cel puțin 50 de observații pentru antrenare.")
+        exit()
+    
+    # Train the model with existing data
+    print("Se antrenează modelul cu datele existente...")
+    X = np.array([[d, h] for d, h, _ in history])
+    y = np.array([v for _, _, v in history])
+    model.fit(X, y)
+    print(f"Modelul a fost antrenat cu succes folosind {len(history)} observații!")
 
 # Prepare grid of days (0-6) and hours (0-23)
 days = list(range(7))

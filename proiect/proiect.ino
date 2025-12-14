@@ -116,6 +116,12 @@ void setup()
 
   // Conectarea a reusit
   Serial.println("Connected to wifi");
+  Serial.print("Arduino IP address: ");
+  Serial.println(WiFi.localIP());
+  Serial.print("Sending to PC IP: ");
+  Serial.println(pcIP);
+  Serial.print("Port: ");
+  Serial.println(port);
   Serial.println("\nStarting connection to server...");
   udp.begin(port);
 }

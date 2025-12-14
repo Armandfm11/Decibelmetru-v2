@@ -1,5 +1,8 @@
-#ifdef NETWORK_H
-#define NETWORK_H
+#ifndef NETWORK_H_
+#define NETWORK_H_
+
+#include <Arduino.h>
+#include <IPAddress.h>
 
 const char ssid[]       = "0";
 const char pass[]       = "0";

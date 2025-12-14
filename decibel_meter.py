@@ -11,6 +11,9 @@ import queue
 # Timp
 import time
 
+# CPU monitoring
+import psutil
+
 # Conexiune wireless
 import socket
 
@@ -21,12 +24,17 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 # Componenta de inteligenta artificiala
 from pattern_ai import PatternAI
 
+# Environment variables
+import os
+from dotenv import load_dotenv
 
+# Incarca variabilele de mediu din .env
+load_dotenv()
 
         # Configurare socket UDP
-# Aplicatia va accepta pachete de la orice IP de pe portul 0
-UDP_IP = "0.0.0.0"
-UDP_PORT = 0
+# Aplicatia va accepta pachete de la orice IP de pe portul configurat in .env
+UDP_IP = os.getenv("UDP_IP")
+UDP_PORT = int(os.getenv("UDP_PORT"))
 
 # Creare socket care va folosi IPv4 și UDP
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -66,6 +74,8 @@ class DecibelMetru(tk.Tk):
         self.ai = PatternAI()
         self.ai_queue = queue.Queue()
         self.ai_pred = None
+        self.ai_prediction_enabled = True  # Disable if CPU too high
+        self.last_cpu_check = time.time()
         self.ai_thread = threading.Thread(target=self._ai_worker, daemon=True)
         self.ai_thread.start()
 
@@ -83,9 +93,17 @@ class DecibelMetru(tk.Tk):
     def _ai_worker(self):
         while True:
             value = self.ai_queue.get()
+            # Always save data for training
             self.ai.add_observation(value)
-            # Only predict if model is trained and enough data exists
-            if self.ai.initialized and len(self.ai.history) >= 50:
+            
+            # Check CPU usage every 5 seconds
+            if time.time() - self.last_cpu_check > 5:
+                cpu_percent = psutil.cpu_percent(interval=0.1)
+                self.ai_prediction_enabled = cpu_percent < 85  # Disable if >85%
+                self.last_cpu_check = time.time()
+            
+            # Only predict if enabled and model is trained
+            if self.ai_prediction_enabled and self.ai.initialized and len(self.ai.history) >= 50:
                 try:
                     pred = self.ai.predict_current_pattern()
                     self.ai_pred = pred
@@ -136,6 +154,7 @@ class DecibelMetru(tk.Tk):
         # Prag + alerta
         tk.Label(controls_frame, text="Prag dB").pack(pady=(20,0))
         self.threshold_var = tk.DoubleVar(value=40.0)
+        self.threshold_var.trace_add('write', lambda *args: self._update_threshold_line())
         th_frame = tk.Frame(controls_frame)
         th_frame.pack()
         tk.Scale(th_frame, from_=5, to=70, orient=tk.HORIZONTAL,
@@ -171,8 +190,8 @@ class DecibelMetru(tk.Tk):
             font=("Arial", 7),
             fg="gray",
             anchor="w",
+            width=80,
             justify="left"
-           
         )
         self.plot_times_label.pack(side=tk.BOTTOM, pady=(2, 0), fill=tk.X)
 
@@ -184,8 +203,17 @@ class DecibelMetru(tk.Tk):
         self.ax.set_xlabel("Timp [s]")
         self.ax.set_ylabel("dB")
         self.line, = self.ax.plot([], [], 'b-')
+        self.threshold_line = None
+        self.prediction_line = None
         self.canvas = FigureCanvasTkAgg(fig, master=self)
         self.canvas.get_tk_widget().pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
+
+    # Update threshold line when slider changes
+    def _update_threshold_line(self):
+        if self.threshold_line:
+            thr = self.threshold_var.get()
+            self.threshold_line.set_ydata([thr, thr])
+            self.canvas.draw_idle()
 
     # Safety lock
     def on_lock(self):
@@ -213,10 +241,19 @@ class DecibelMetru(tk.Tk):
             self.after(5000, lambda: self._set_status("Conectat la Arduino Uno R4 WiFi") if  self.running else self._set_status("Program oprit\nSalut! :)"))        
 
             # Resetare plot
-            self.ax.clear()
-            self.ax.set_title("Nivel sunet")
-            self.ax.set_xlabel("Timp [s]")
-            self.ax.set_ylabel("dB")
+            self.line.set_data([], [])
+            # Set reasonable default axis limits to prevent wild expansion
+            self.ax.set_xlim(0, 10)
+            self.ax.set_ylim(0, 80)
+            # Re-enable autoscaling so it works when new data arrives
+            self.ax.autoscale(enable=True, axis='both')
+            # Update threshold line position (don't remove it)
+            thr = self.threshold_var.get()
+            if self.threshold_line:
+                self.threshold_line.set_ydata([thr, thr])
+            else:
+                # Create if doesn't exist
+                self.threshold_line = self.ax.axhline(thr, color='red', linestyle='--', linewidth=2, label='Prag')
             self.canvas.draw_idle()
 
     # Pornire conexiune UDP - buton start
@@ -304,14 +341,28 @@ class DecibelMetru(tk.Tk):
             else:
                 # Exceptie - cazul in care se face reset si nu exista valori
                 xs, ys = [], []
-            self.ax.clear()
-            self.ax.plot(xs, ys, 'b-')
-
-            # Afisare prag selectat pe grafic
-            self.ax.axhline(self.threshold_var.get(), color='red', linestyle='dotted', linewidth=2, label='Prag')
-            self.ax.set_title("Nivel sunet")
-            self.ax.set_xlabel("Timp [s]")
-            self.ax.set_ylabel("dB")
+            
+            # Update line data
+            self.line.set_data(xs, ys)
+            
+            # Recalculate limits based on data only
+            if xs:
+                self.ax.relim()
+                self.ax.autoscale_view()
+            
+            # Update or create threshold line (axhline doesn't affect autoscaling)
+            thr = self.threshold_var.get()
+            if self.threshold_line:
+                self.threshold_line.set_ydata([thr, thr])
+            else:
+                self.threshold_line = self.ax.axhline(thr, color='red', linestyle='--', linewidth=2, label='Prag')
+            
+            # Update or create prediction line
+            if self.ai_pred is not None:
+                if self.prediction_line:
+                    self.prediction_line.set_ydata([self.ai_pred, self.ai_pred])
+                else:
+                    self.prediction_line = self.ax.axhline(self.ai_pred, color='orange', linestyle=':', linewidth=1.5, label='Predictie')
 
             # Actualizeaza plot-ul cand nu esti ocupat
             self.canvas.draw_idle()

@@ -1,1 +1,4 @@
 network.h
+
+# Environment variables
+.env
