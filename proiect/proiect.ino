@@ -21,6 +21,15 @@
 #include <WiFiUdp.h>
 
 
+// Librarie LED Matrix
+#include "Arduino_LED_Matrix.h"
+ArduinoLEDMatrix matrix;
+
+
+
+
+
+
 // Parametrii display OLED
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 64
@@ -81,6 +90,13 @@ void setup()
 {
   // Push-Button
   pinMode(10, INPUT);
+
+  // Initializare Matrix
+    matrix.begin();
+
+
+
+
 
   // Pentru debug
   Serial.begin(9600);
@@ -189,6 +205,10 @@ void loop()
 
   // Functie display
   show(dB);
+
+
+  // Functie Matrix
+  updateMatrix(dB);
 }
 
 // Functie display
@@ -231,4 +251,31 @@ void blink()
   }
   // La fiecare 3 achizitii cu valori finale peste 50
   // ecranul va clipi, semnaland o valoare de zgomot mare
+}
+
+
+void updateMatrix(float val)
+{
+  // 1. Constrain the value between 50 and 60 dB
+  int constrainedDb = constrain((int)val, 40, 60);
+  
+  // 2. Map the 50-60 range to the 0-96 pixels on the matrix
+  int pixelsToLight = map(constrainedDb, 40, 60, 0, 96);
+
+  // 3. Create a blank frame (8 rows, 12 columns)
+  byte frame[8][12] = {0}; 
+  
+  // 4. Fill the frame from the BOTTOM UP
+  int count = 0;
+  for (int r = 7; r >= 0; r--) {        // <--- Changed: Start at row 7, go down to 0
+    for (int c = 0; c < 12; c++) {      // Columns still go left to right (0 to 11)
+      if (count < pixelsToLight) {
+        frame[r][c] = 1;                // Turn pixel on
+        count++;
+      }
+    }
+  }
+
+  // 5. Render the frame to the matrix
+  matrix.renderBitmap(frame, 8, 12);
 }
